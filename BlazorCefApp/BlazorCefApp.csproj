@@ -5,6 +5,8 @@
 		<OutputType>WinExe</OutputType>
 		<UseWindowsForms>true</UseWindowsForms>
 		<UseWPF>true</UseWPF>
+		<StartupObject>BlazorCefApp.Program</StartupObject>
+		<UserSecretsId>068482c8-eb9a-49b2-9b39-5ff73bfa08b3</UserSecretsId>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -30,5 +32,7 @@
 	    <HintPath>..\dllrefs\mstscax_interop.dll</HintPath>
 	  </Reference>
 	</ItemGroup>
+
+	<ProjectExtensions><VisualStudio><UserProperties appsettings_1json__JsonSchema="" /></VisualStudio></ProjectExtensions>
 
 </Project>

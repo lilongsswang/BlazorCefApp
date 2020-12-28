@@ -5,158 +5,167 @@
 
 @code {
 
-	bool _pageDisposed;
-	System.IO.Ports.SerialPort _sport = new System.IO.Ports.SerialPort();
+    bool _pageDisposed;
+    System.IO.Ports.SerialPort _sport = new System.IO.Ports.SerialPort();
 
-	protected override void OnInitialized()
-	{
-		base.OnInitialized();
-		//NOTE: install System.Text.Encoding.CodePages for more Encoding : Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-		_sport.Encoding = System.Text.Encoding.UTF8;
-		_sport.ReadTimeout = -1;
-		_sport.BaudRate = 115200;
-		_sport.PortName = System.IO.Ports.SerialPort.GetPortNames().OrderByDescending(v => v).First();
-	}
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        try
+        {
 
-	void IDisposable.Dispose()
-	{
-		_pageDisposed = true;
-		if (_sport.IsOpen) _sport.Close();
-		_sport = null;
-	}
 
-	byte[] buffer = new byte[65536];
-	int buflen = 0;
+            //NOTE: install System.Text.Encoding.CodePages for more Encoding : Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            _sport.Encoding = System.Text.Encoding.UTF8;
+            _sport.ReadTimeout = -1;
+            _sport.BaudRate = 115200;
+            _sport.PortName = System.IO.Ports.SerialPort.GetPortNames().OrderByDescending(v => v).First();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+    }
 
-	async Task PlayPortAsync()
-	{
-		try
-		{
-			_sport.Open();
-		}
-		catch (Exception x)
-		{
-			bses.Alert("Error", x.ToString());
-			return;
-		}
+    void IDisposable.Dispose()
+    {
+        _pageDisposed = true;
+        if (_sport.IsOpen) _sport.Close();
+        _sport = null;
+    }
 
-		try
-		{
-			//wait UI Renderer show the msgpanel
-			//NOTE:PlayPortAsync is called by the button , so the rest code is running in renderer thread
-			await Task.Delay(100);
+    byte[] buffer = new byte[65536];
+    int buflen = 0;
 
-			while (true)
-			{
-				int rc = await _sport.BaseStream.ReadAsync(buffer, buflen, buffer.Length - buflen);
-				if (rc == 0)
-				{
-					if (_pageDisposed)
-						return;
-					await Task.Delay(100);
-					continue;
-				}
+    async Task PlayPortAsync()
+    {
+        try
+        {
+            _sport.Open();
+        }
+        catch (Exception x)
+        {
+            bses.Alert("Error", x.ToString());
+            return;
+        }
 
-				buflen += rc;
+        try
+        {
+            //wait UI Renderer show the msgpanel
+            //NOTE:PlayPortAsync is called by the button , so the rest code is running in renderer thread
+            await Task.Delay(100);
 
-			ParseAgain:
-				int pos = Array.IndexOf(buffer, (byte)13, 0, buflen);
-				if (pos != -1)
-				{
-					string line = _sport.Encoding.GetString(buffer, 0, pos);
-					CreateMsgItem().CssClass("msgitem-line").InnerText(line.Trim());
-					int newlen = buflen - pos - 1;
-					if (newlen > 0)
-					{
-						Buffer.BlockCopy(buffer, pos + 1, buffer, 0, newlen);
-						buflen = newlen;
-						goto ParseAgain;
-					}
-					buflen = 0;
-				}
-				else if (buflen == buffer.Length)
-				{
-					CreateMsgItem().CssClass("msgitem-full").InnerText("buffer full , ignore " + buflen + " bytes");
-					buflen = 0;
-				}
-				else if (buflen == 1 && buffer[0] == 10)
-				{
-					buflen = 0;//ignore '\r'
-				}
+            while (true)
+            {
+                int rc = await _sport.BaseStream.ReadAsync(buffer, buflen, buffer.Length - buflen);
+                if (rc == 0)
+                {
+                    if (_pageDisposed)
+                        return;
+                    await Task.Delay(100);
+                    continue;
+                }
 
-				StateHasChanged();
-			}
-		}
-		catch (Exception x)
-		{
-			if (_pageDisposed)
-				return;
-			bses.Alert("Error", x.ToString());
-			_sport.Close();
-			StateHasChanged();
-		}
-		finally
-		{
-			//TODO: bug , if the unplug the device , it didn't release correctly
-			try { _sport.Close(); } catch { }
-		}
-	}
+                buflen += rc;
 
-	PlusControl msgpanel;
-	void msgpanel_ready(BlazorDomTree bdt)
-	{
-		msgpanel = bdt.Root;
-	}
+                ParseAgain:
+                int pos = Array.IndexOf(buffer, (byte)13, 0, buflen);
+                if (pos != -1)
+                {
+                    string line = _sport.Encoding.GetString(buffer, 0, pos);
+                    CreateMsgItem().CssClass("msgitem-line").InnerText(line.Trim());
+                    int newlen = buflen - pos - 1;
+                    if (newlen > 0)
+                    {
+                        Buffer.BlockCopy(buffer, pos + 1, buffer, 0, newlen);
+                        buflen = newlen;
+                        goto ParseAgain;
+                    }
+                    buflen = 0;
+                }
+                else if (buflen == buffer.Length)
+                {
+                    CreateMsgItem().CssClass("msgitem-full").InnerText("buffer full , ignore " + buflen + " bytes");
+                    buflen = 0;
+                }
+                else if (buflen == 1 && buffer[0] == 10)
+                {
+                    buflen = 0;//ignore '\r'
+                }
 
-	PlusControl CreateMsgItem()
-	{
-		PlusControl newdiv;
-		lock (msgpanel)
-		{
-			while (msgpanel.GetChildCount() > 200)
-				msgpanel.RemoveChild(msgpanel.GetChildAt(0));
-			newdiv = msgpanel.Create("div");
-		}
-		msgpanel.Eval("var p=this;setTimeout(function(){p.scrollTop=p.scrollHeight},1)");
-		return newdiv;
-	}
+                StateHasChanged();
+            }
+        }
+        catch (Exception x)
+        {
+            if (_pageDisposed)
+                return;
+            bses.Alert("Error", x.ToString());
+            _sport.Close();
+            StateHasChanged();
+        }
+        finally
+        {
+            //TODO: bug , if the unplug the device , it didn't release correctly
+            try { _sport.Close(); } catch { }
+        }
+    }
 
-	PlusControl inp;
-	void inp_ready(BlazorDomTree bdt)
-	{
-		inp = bdt.Root;
-		inp.OnEnterKey(delegate
-		{
-			TrySend();
-			StateHasChanged();
-		});
-	}
+    PlusControl msgpanel;
+    void msgpanel_ready(BlazorDomTree bdt)
+    {
+        msgpanel = bdt.Root;
+    }
 
-	void TrySend()
-	{
-		string str = inp.Value;
-		if (string.IsNullOrEmpty(str))
-		{
-			bses.Toast("type something..");
-			return;
-		}
+    PlusControl CreateMsgItem()
+    {
+        PlusControl newdiv;
+        lock (msgpanel)
+        {
+            while (msgpanel.GetChildCount() > 200)
+                msgpanel.RemoveChild(msgpanel.GetChildAt(0));
+            newdiv = msgpanel.Create("div");
+        }
+        msgpanel.Eval("var p=this;setTimeout(function(){p.scrollTop=p.scrollHeight},1)");
+        return newdiv;
+    }
 
-		byte[] data = _sport.Encoding.GetBytes(str + "\n");
-		try
-		{
-			_sport.BaseStream.Write(data, 0, data.Length);
-		}
-		catch (Exception x)
-		{
-			bses.Alert("Error", x.ToString());
-			return;
-		}
+    PlusControl inp;
+    void inp_ready(BlazorDomTree bdt)
+    {
+        inp = bdt.Root;
+        inp.OnEnterKey(delegate
+        {
+            TrySend();
+            StateHasChanged();
+        });
+    }
 
-		CreateMsgItem().CssClass("msgitem-send").InnerText(str);
+    void TrySend()
+    {
+        string str = inp.Value;
+        if (string.IsNullOrEmpty(str))
+        {
+            bses.Toast("type something..");
+            return;
+        }
 
-		inp.Value = "";
-		inp.SetFocus();
-	}
+        byte[] data = _sport.Encoding.GetBytes(str + "\n");
+        try
+        {
+            _sport.BaseStream.Write(data, 0, data.Length);
+        }
+        catch (Exception x)
+        {
+            bses.Alert("Error", x.ToString());
+            return;
+        }
+
+        CreateMsgItem().CssClass("msgitem-send").InnerText(str);
+
+        inp.Value = "";
+        inp.SetFocus();
+    }
 
 }
 
